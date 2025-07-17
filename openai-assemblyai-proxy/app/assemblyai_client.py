@@ -70,6 +70,9 @@ class AssemblyAIClient:
         if request.speech_model:
             payload["speech_model"] = request.speech_model
         
+        if request.speaker_diarization is not None:
+            payload["speaker_diarization"] = request.speaker_diarization
+        
         self.logger.info(f"Submitting transcription job for audio URL: {request.audio_url}")
         
         try:

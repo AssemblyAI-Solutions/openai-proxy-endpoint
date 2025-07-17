@@ -76,7 +76,8 @@ async def create_transcription(
     prompt: str = Form(None),
     response_format: str = Form("json"),
     temperature: float = Form(0.0),
-    audio_url: str = Form(None)
+    audio_url: str = Form(None),
+    speaker_diarization: bool = Form(None)
 ):
     """
     Create a transcription using AssemblyAI API with OpenAI-compatible interface
@@ -205,6 +206,7 @@ async def create_transcription(
             language_code=language_code,
             speech_model=speech_model,
             word_boost=word_boost,
+            speaker_diarization=speaker_diarization,
             punctuate=True,
             format_text=True
         )

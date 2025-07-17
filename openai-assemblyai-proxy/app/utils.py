@@ -100,8 +100,27 @@ def convert_assemblyai_to_openai_response(assemblyai_response: Dict[str, Any], r
         "duration": assemblyai_response.get("audio_duration")
     }
     
-    # Convert words to segments if available
-    if assemblyai_response.get("words"):
+    # Convert utterances to segments if speaker diarization is available
+    if assemblyai_response.get("utterances"):
+        segments = []
+        for utterance in assemblyai_response["utterances"]:
+            segment = {
+                "id": len(segments),
+                "seek": utterance.get("start", 0),
+                "start": utterance.get("start", 0) / 1000.0,  # Convert ms to seconds
+                "end": utterance.get("end", 0) / 1000.0,
+                "text": utterance.get("text", ""),
+                "speaker": utterance.get("speaker", "Unknown"),  # Add speaker info
+                "tokens": [],
+                "temperature": 0.0,
+                "avg_logprob": 0.0,
+                "compression_ratio": 1.0,
+                "no_speech_prob": 0.0
+            }
+            segments.append(segment)
+        openai_response["segments"] = segments
+    # Fallback to words if no utterances (no speaker diarization)
+    elif assemblyai_response.get("words"):
         segments = []
         for word in assemblyai_response["words"]:
             segment = {

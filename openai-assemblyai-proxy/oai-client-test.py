@@ -1,12 +1,14 @@
 import openai
-import requests
-import tempfile
 import os
+import tempfile
+import requests
+import json
+from datetime import datetime
 
 def main():
     
     client = openai.OpenAI(
-        api_key="your-assemblyai-api-key-here",  # This will be passed to AssemblyAI
+        api_key="fc9fcba4149f4bfa9774f7bff8865cba",  # This will be passed to AssemblyAI
         base_url="https://assemblyai-oai-client-142150461292.us-west1.run.app/v1"
     )
     
@@ -31,6 +33,18 @@ def main():
             )
 
         print(transcript)
+        
+        # Save JSON response to file for inspection
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = f"transcript_response_{timestamp}.json"
+        
+        # Convert transcript object to dict if needed
+        transcript_dict = transcript.model_dump() if hasattr(transcript, 'model_dump') else dict(transcript)
+        
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(transcript_dict, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n💾 Response saved to: {output_file}")
         
     except Exception as e:
         print(f"❌ Error: {e}")
