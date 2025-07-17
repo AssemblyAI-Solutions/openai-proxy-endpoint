@@ -87,6 +87,47 @@ def format_openai_error(message: str, error_type: str = "invalid_request_error",
     return {"error": error_data}
 
 
+def parse_prompt_for_speaker_diarization(prompt: str) -> tuple[bool, str]:
+    """Parse prompt for speaker diarization control and return (enabled, cleaned_prompt)"""
+    if not prompt:
+        return False, None
+    
+    # Check for speaker diarization flags (case insensitive)
+    prompt_lower = prompt.lower()
+    speaker_diarization = False
+    
+    # Look for various patterns (both speaker_labels and speaker_diarization)
+    patterns = [
+        "speaker_labels=true",
+        "speaker_labels:true", 
+        "speaker_labels true",
+        "enable_speaker_labels",
+        "speaker_diarization=true",
+        "speaker_diarization:true", 
+        "speaker_diarization true",
+        "enable_speaker_diarization",
+        "diarization=true",
+        "diarization:true",
+        "diarization true"
+    ]
+    
+    cleaned_prompt = prompt
+    for pattern in patterns:
+        if pattern in prompt_lower:
+            speaker_diarization = True
+            # Remove the control pattern from the prompt
+            # Find the actual case in the original prompt
+            start_idx = prompt_lower.find(pattern)
+            if start_idx != -1:
+                cleaned_prompt = (prompt[:start_idx] + prompt[start_idx + len(pattern):]).strip()
+            break
+    
+    # Return empty string as None if prompt becomes empty after cleaning
+    cleaned_prompt = cleaned_prompt if cleaned_prompt else None
+    
+    return speaker_diarization, cleaned_prompt
+
+
 def convert_assemblyai_to_openai_response(assemblyai_response: Dict[str, Any], response_format: str = "json") -> Dict[str, Any]:
     """Convert AssemblyAI response to OpenAI format"""
     if response_format == "text":

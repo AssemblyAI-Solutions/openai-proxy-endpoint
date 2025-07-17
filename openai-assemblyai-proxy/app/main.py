@@ -19,7 +19,8 @@ from .utils import (
     format_openai_error,
     convert_assemblyai_to_openai_response,
     validate_audio_url,
-    get_current_timestamp
+    get_current_timestamp,
+    parse_prompt_for_speaker_diarization
 )
 
 
@@ -76,8 +77,7 @@ async def create_transcription(
     prompt: str = Form(None),
     response_format: str = Form("json"),
     temperature: float = Form(0.0),
-    audio_url: str = Form(None),
-    speaker_diarization: bool = Form(None)
+    audio_url: str = Form(None)
 ):
     """
     Create a transcription using AssemblyAI API with OpenAI-compatible interface
@@ -179,10 +179,16 @@ async def create_transcription(
         if temperature != 0.0:
             logger.info(f"Temperature parameter '{temperature}' ignored")
         
+        # Parse prompt for speaker diarization control
+        speaker_diarization, cleaned_prompt = parse_prompt_for_speaker_diarization(prompt)
+        logger.info(f"Original prompt: '{prompt}'")
+        logger.info(f"Speaker diarization enabled: {speaker_diarization}")
+        logger.info(f"Cleaned prompt: '{cleaned_prompt}'")
+        
         # Map OpenAI parameters to AssemblyAI format
         language_code = map_language_code(language)
         speech_model = map_openai_model_to_speech_model(model)
-        word_boost = parse_word_boost(prompt)
+        word_boost = parse_word_boost(cleaned_prompt)
         
         # Validate model parameter
         if model and speech_model is None:
@@ -206,7 +212,7 @@ async def create_transcription(
             language_code=language_code,
             speech_model=speech_model,
             word_boost=word_boost,
-            speaker_diarization=speaker_diarization,
+            speaker_labels=speaker_diarization,
             punctuate=True,
             format_text=True
         )

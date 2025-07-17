@@ -70,10 +70,11 @@ class AssemblyAIClient:
         if request.speech_model:
             payload["speech_model"] = request.speech_model
         
-        if request.speaker_diarization is not None:
-            payload["speaker_diarization"] = request.speaker_diarization
+        if request.speaker_labels is not None:
+            payload["speaker_labels"] = request.speaker_labels
         
         self.logger.info(f"Submitting transcription job for audio URL: {request.audio_url}")
+        self.logger.info(f"Payload being sent to AssemblyAI: {payload}")
         
         try:
             response = requests.post(url, json=payload, headers=self.headers, timeout=30)
@@ -85,6 +86,12 @@ class AssemblyAIClient:
             
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Failed to submit transcription job: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_detail = e.response.json()
+                    self.logger.error(f"AssemblyAI error response: {error_detail}")
+                except:
+                    self.logger.error(f"AssemblyAI response text: {e.response.text}")
             raise Exception(f"Failed to submit transcription job: {str(e)}")
     
     def get_transcription_status(self, transcript_id: str) -> Dict[str, Any]:

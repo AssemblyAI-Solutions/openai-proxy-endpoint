@@ -30,7 +30,7 @@ class AssemblyAITranscriptionRequest(BaseModel):
     language_code: Optional[str] = None
     word_boost: Optional[List[str]] = None
     speech_model: Optional[str] = None
-    speaker_diarization: Optional[bool] = None
+    speaker_labels: Optional[bool] = None
     punctuate: bool = True
     format_text: bool = True
 
