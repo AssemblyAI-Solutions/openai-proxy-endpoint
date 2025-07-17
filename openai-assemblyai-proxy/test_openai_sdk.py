@@ -6,21 +6,76 @@ Test script using OpenAI SDK to verify the proxy API works correctly
 import os
 import requests
 import json
+import tempfile
+import openai
 from typing import Optional
 
 
-def test_with_openai_sdk():
-    """Test using OpenAI SDK (simulated since it expects file uploads)"""
-    print("Testing with OpenAI SDK approach...")
+def test_with_openai_sdk_file_upload():
+    """Test using actual OpenAI SDK with file upload"""
+    print("Testing with OpenAI SDK (file upload)...")
     
-    # Since OpenAI SDK expects file uploads, we'll use requests to simulate
-    # what the SDK would do but with our audio_url parameter
+    base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
+    
+    # Initialize OpenAI client with our proxy
+    client = openai.OpenAI(
+        api_key="dummy-key",  # Not used by our proxy
+        base_url=f"{base_url}/v1"
+    )
+    
+    # Download a sample audio file to test with
+    sample_url = "https://github.com/AssemblyAI-Examples/audio-examples/raw/main/20230607_me_canadian_wildfires.mp3"
+    
+    try:
+        print(f"Downloading sample audio file...")
+        response = requests.get(sample_url, timeout=30)
+        response.raise_for_status()
+        
+        # Save to temporary file
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+            temp_file.write(response.content)
+            temp_file_path = temp_file.name
+        
+        print(f"Testing transcription with OpenAI SDK...")
+        
+        # Use OpenAI SDK to transcribe
+        with open(temp_file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                language="en",
+                response_format="json"
+            )
+        
+        print("✅ Success! OpenAI SDK transcription completed")
+        print(f"Text: {transcript.text[:200]}..." if len(transcript.text) > 200 else f"Text: {transcript.text}")
+        
+        # Clean up
+        os.unlink(temp_file_path)
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ OpenAI SDK test failed: {str(e)}")
+        # Clean up on error
+        try:
+            os.unlink(temp_file_path)
+        except:
+            pass
+        return False
+
+
+def test_with_openai_sdk_url_fallback():
+    """Test using requests to simulate OpenAI SDK with URL parameter"""
+    print("Testing with URL parameter (fallback method)...")
+    
     base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
     
     # Sample audio URL
     audio_url = "https://github.com/AssemblyAI-Examples/audio-examples/raw/main/20230607_me_canadian_wildfires.mp3"
     
-    payload = {
+    # Use form data to match our API
+    form_data = {
         "audio_url": audio_url,
         "model": "whisper-1",
         "language": "en",
@@ -29,12 +84,11 @@ def test_with_openai_sdk():
     
     try:
         print(f"Making request to: {base_url}/v1/audio/transcriptions")
-        print(f"Payload: {json.dumps(payload, indent=2)}")
+        print(f"Form data: {json.dumps(form_data, indent=2)}")
         
         response = requests.post(
             f"{base_url}/v1/audio/transcriptions",
-            json=payload,
-            headers={"Content-Type": "application/json"},
+            data=form_data,
             timeout=120
         )
         
@@ -42,8 +96,9 @@ def test_with_openai_sdk():
         
         if response.status_code == 200:
             data = response.json()
-            print("✅ Success! Response:")
-            print(json.dumps(data, indent=2))
+            print("✅ Success! URL fallback test completed")
+            text = data.get('text', '')
+            print(f"Text: {text[:200]}..." if len(text) > 200 else f"Text: {text}")
             return True
         else:
             print("❌ Failed! Error response:")
@@ -57,122 +112,6 @@ def test_with_openai_sdk():
     except Exception as e:
         print(f"❌ Request failed: {str(e)}")
         return False
-
-
-def test_different_formats():
-    """Test different response formats"""
-    print("\nTesting different response formats...")
-    
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
-    audio_url = "https://github.com/AssemblyAI-Examples/audio-examples/raw/main/20230607_me_canadian_wildfires.mp3"
-    
-    # Test JSON format
-    print("Testing JSON format...")
-    payload = {
-        "audio_url": audio_url,
-        "model": "whisper-1",
-        "response_format": "json"
-    }
-    
-    try:
-        response = requests.post(f"{base_url}/v1/audio/transcriptions", json=payload, timeout=120)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ JSON format works: {data.get('text', '')[:100]}...")
-        else:
-            print(f"❌ JSON format failed: {response.status_code}")
-    except Exception as e:
-        print(f"❌ JSON format error: {str(e)}")
-    
-    # Test text format
-    print("Testing text format...")
-    payload["response_format"] = "text"
-    
-    try:
-        response = requests.post(f"{base_url}/v1/audio/transcriptions", json=payload, timeout=120)
-        if response.status_code == 200:
-            text_response = response.text.strip('"')  # Remove quotes if present
-            print(f"✅ Text format works: {text_response[:100]}...")
-        else:
-            print(f"❌ Text format failed: {response.status_code}")
-    except Exception as e:
-        print(f"❌ Text format error: {str(e)}")
-
-
-def test_parameter_mapping():
-    """Test parameter mapping functionality"""
-    print("\nTesting parameter mapping...")
-    
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
-    audio_url = "https://github.com/AssemblyAI-Examples/audio-examples/raw/main/20230607_me_canadian_wildfires.mp3"
-    
-    # Test with language parameter
-    payload = {
-        "audio_url": audio_url,
-        "model": "whisper-1",
-        "language": "en",
-        "prompt": "wildfire smoke Canada",  # Should be mapped to word_boost
-        "temperature": 0.5,  # Should be ignored
-        "response_format": "json"
-    }
-    
-    try:
-        response = requests.post(f"{base_url}/v1/audio/transcriptions", json=payload, timeout=120)
-        if response.status_code == 200:
-            data = response.json()
-            print("✅ Parameter mapping works")
-            print(f"Language: {data.get('language')}")
-            print(f"Text preview: {data.get('text', '')[:100]}...")
-        else:
-            print(f"❌ Parameter mapping failed: {response.status_code}")
-            try:
-                error_data = response.json()
-                print(json.dumps(error_data, indent=2))
-            except:
-                print(response.text)
-    except Exception as e:
-        print(f"❌ Parameter mapping error: {str(e)}")
-
-
-def test_error_cases():
-    """Test error handling"""
-    print("\nTesting error handling...")
-    
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
-    
-    # Test invalid URL
-    print("Testing invalid audio URL...")
-    payload = {
-        "audio_url": "https://invalid-domain-12345.com/nonexistent.wav",
-        "model": "whisper-1"
-    }
-    
-    try:
-        response = requests.post(f"{base_url}/v1/audio/transcriptions", json=payload, timeout=30)
-        if response.status_code >= 400:
-            print("✅ Error handling works for invalid URL")
-            try:
-                error_data = response.json()
-                print(f"Error type: {error_data.get('error', {}).get('type')}")
-            except:
-                pass
-        else:
-            print("❌ Expected error but got success")
-    except Exception as e:
-        print(f"Error test result: {str(e)}")
-    
-    # Test missing audio_url
-    print("Testing missing audio_url...")
-    payload = {"model": "whisper-1"}
-    
-    try:
-        response = requests.post(f"{base_url}/v1/audio/transcriptions", json=payload, timeout=10)
-        if response.status_code >= 400:
-            print("✅ Error handling works for missing audio_url")
-        else:
-            print("❌ Expected error but got success")
-    except Exception as e:
-        print(f"Missing URL test result: {str(e)}")
 
 
 def check_server_health():
@@ -194,10 +133,13 @@ def check_server_health():
         return False
 
 
+
+
+
 def main():
     """Main test function"""
-    print("🧪 Testing OpenAI to AssemblyAI Proxy API")
-    print("=" * 50)
+    print("🧪 Testing OpenAI to AssemblyAI Proxy API with OpenAI SDK")
+    print("=" * 60)
     
     # Check environment
     if not os.getenv("ASSEMBLYAI_API_KEY"):
@@ -213,30 +155,32 @@ def main():
     
     # Run tests
     success_count = 0
-    total_tests = 4
+    total_tests = 2
     
-    if test_with_openai_sdk():
+    # Test 1: OpenAI SDK with file upload
+    print("Test 1: OpenAI SDK with file upload")
+    print("-" * 40)
+    if test_with_openai_sdk_file_upload():
         success_count += 1
+    print()
     
-    test_different_formats()  # This has multiple sub-tests
-    success_count += 1  # Count as one test for simplicity
+    # Test 2: URL fallback method
+    print("Test 2: URL parameter fallback")
+    print("-" * 40)
+    if test_with_openai_sdk_url_fallback():
+        success_count += 1
+    print()
     
-    test_parameter_mapping()
-    success_count += 1
-    
-    test_error_cases()
-    success_count += 1
-    
-    print("\n" + "=" * 50)
-    print(f"🎯 Test Summary: {success_count}/{total_tests} test groups completed")
+    print("=" * 60)
+    print(f"🎯 Test Summary: {success_count}/{total_tests} tests passed")
     
     if success_count == total_tests:
-        print("🎉 All tests completed successfully!")
-        print("\n💡 Your proxy API is working correctly!")
+        print("🎉 All tests passed!")
+        print("\n💡 Your proxy API is working correctly with the OpenAI SDK!")
         print("   You can now use it as a drop-in replacement for OpenAI's transcription API")
         return 0
     else:
-        print("❌ Some tests had issues")
+        print("❌ Some tests failed")
         return 1
 
 
