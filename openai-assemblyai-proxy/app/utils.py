@@ -49,6 +49,21 @@ def map_language_code(openai_language: Optional[str]) -> Optional[str]:
     return language_mapping.get(openai_language.lower(), openai_language.lower())
 
 
+def map_openai_model_to_speech_model(openai_model: Optional[str]) -> Optional[str]:
+    """Validate and return AssemblyAI speech_model parameter"""
+    if not openai_model:
+        return None
+    
+    # Only accept valid AssemblyAI speech_model values
+    valid_models = {"best", "slam-1", "universal"}
+    
+    if openai_model.lower() in valid_models:
+        return openai_model.lower()
+    
+    # Return None for invalid models (will be handled by caller)
+    return None
+
+
 def parse_word_boost(prompt: Optional[str]) -> Optional[List[str]]:
     """Parse OpenAI prompt into AssemblyAI word_boost array"""
     if not prompt:

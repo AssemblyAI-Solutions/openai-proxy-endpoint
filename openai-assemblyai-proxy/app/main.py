@@ -14,6 +14,7 @@ from .assemblyai_client import AssemblyAIClient
 from .utils import (
     setup_logging,
     map_language_code,
+    map_openai_model_to_speech_model,
     parse_word_boost,
     format_openai_error,
     convert_assemblyai_to_openai_response,
@@ -152,20 +153,35 @@ async def create_transcription(
             )
         
         # Log ignored parameters
-        if model and model != "whisper-1":
-            logger.info(f"Model parameter '{model}' ignored (AssemblyAI doesn't use models)")
-        
         if temperature != 0.0:
             logger.info(f"Temperature parameter '{temperature}' ignored")
         
         # Map OpenAI parameters to AssemblyAI format
         language_code = map_language_code(language)
+        speech_model = map_openai_model_to_speech_model(model)
         word_boost = parse_word_boost(prompt)
+        
+        # Validate model parameter
+        if model and speech_model is None:
+            logger.warning(f"Invalid model parameter: '{model}'. Valid values are: best, slam-1, universal")
+            raise HTTPException(
+                status_code=400,
+                detail=format_openai_error(
+                    message=f"Invalid model '{model}'. Valid AssemblyAI speech models are: best, slam-1, universal",
+                    error_type="invalid_request_error",
+                    code="invalid_model"
+                )
+            )
+        
+        # Log model mapping
+        if model and speech_model:
+            logger.info(f"Using AssemblyAI speech_model: '{speech_model}'")
         
         # Create AssemblyAI request
         assemblyai_request = AssemblyAITranscriptionRequest(
             audio_url=final_audio_url,
             language_code=language_code,
+            speech_model=speech_model,
             word_boost=word_boost,
             punctuate=True,
             format_text=True

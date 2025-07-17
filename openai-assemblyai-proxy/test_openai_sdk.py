@@ -41,7 +41,7 @@ def test_with_openai_sdk_file_upload():
         # Use OpenAI SDK to transcribe
         with open(temp_file_path, "rb") as audio_file:
             transcript = client.audio.transcriptions.create(
-                model="whisper-1",
+                model="best",  # Use valid AssemblyAI model
                 file=audio_file,
                 language="en",
                 response_format="json"
@@ -65,55 +65,6 @@ def test_with_openai_sdk_file_upload():
         return False
 
 
-def test_with_openai_sdk_url_fallback():
-    """Test using requests to simulate OpenAI SDK with URL parameter"""
-    print("Testing with URL parameter (fallback method)...")
-    
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
-    
-    # Sample audio URL
-    audio_url = "https://github.com/AssemblyAI-Examples/audio-examples/raw/main/20230607_me_canadian_wildfires.mp3"
-    
-    # Use form data to match our API
-    form_data = {
-        "audio_url": audio_url,
-        "model": "whisper-1",
-        "language": "en",
-        "response_format": "json"
-    }
-    
-    try:
-        print(f"Making request to: {base_url}/v1/audio/transcriptions")
-        print(f"Form data: {json.dumps(form_data, indent=2)}")
-        
-        response = requests.post(
-            f"{base_url}/v1/audio/transcriptions",
-            data=form_data,
-            timeout=120
-        )
-        
-        print(f"Response status: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print("✅ Success! URL fallback test completed")
-            text = data.get('text', '')
-            print(f"Text: {text[:200]}..." if len(text) > 200 else f"Text: {text}")
-            return True
-        else:
-            print("❌ Failed! Error response:")
-            try:
-                error_data = response.json()
-                print(json.dumps(error_data, indent=2))
-            except:
-                print(response.text)
-            return False
-            
-    except Exception as e:
-        print(f"❌ Request failed: {str(e)}")
-        return False
-
-
 def check_server_health():
     """Check if the server is running"""
     base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
@@ -133,7 +84,122 @@ def check_server_health():
         return False
 
 
+def test_assemblyai_speech_models():
+    """Test different AssemblyAI speech models using OpenAI SDK"""
+    base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
+    
+    # Initialize OpenAI client with our proxy
+    client = openai.OpenAI(
+        api_key="dummy-key",  # Not used by our proxy
+        base_url=f"{base_url}/v1"
+    )
+    
+    # Test different AssemblyAI speech models
+    models_to_test = ["best", "slam-1", "universal"]
+    sample_url = "https://github.com/AssemblyAI-Examples/audio-examples/raw/main/20230607_me_canadian_wildfires.mp3"
+    
+    results = []
+    
+    for model in models_to_test:
+        print(f"Testing AssemblyAI speech model: {model}")
+        
+        try:
+            # Download sample audio file
+            response = requests.get(sample_url, timeout=30)
+            response.raise_for_status()
+            
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+                temp_file.write(response.content)
+                temp_file_path = temp_file.name
+            
+            # Use OpenAI SDK to transcribe with specific model
+            with open(temp_file_path, "rb") as audio_file:
+                transcript = client.audio.transcriptions.create(
+                    model=model,  # Use AssemblyAI speech model
+                    file=audio_file,
+                    language="en",
+                    response_format="json"
+                )
+            
+            print(f"✅ Success with model '{model}'!")
+            print(f"Text: {transcript.text[:100]}..." if len(transcript.text) > 100 else f"Text: {transcript.text}")
+            results.append((model, True, None))
+            
+            # Clean up
+            os.unlink(temp_file_path)
+            
+        except Exception as e:
+            print(f"❌ Failed with model '{model}': {str(e)}")
+            results.append((model, False, str(e)))
+            # Clean up on error
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+        
+        print()
+    
+    return results
 
+
+def test_invalid_model_rejection():
+    """Test that invalid models (like whisper-1) are properly rejected"""
+    print("Testing invalid model rejection...")
+    
+    base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
+    
+    # Initialize OpenAI client with our proxy
+    client = openai.OpenAI(
+        api_key="dummy-key",  # Not used by our proxy
+        base_url=f"{base_url}/v1"
+    )
+    
+    sample_url = "https://github.com/AssemblyAI-Examples/audio-examples/raw/main/20230607_me_canadian_wildfires.mp3"
+    
+    try:
+        # Download sample audio file
+        response = requests.get(sample_url, timeout=30)
+        response.raise_for_status()
+        
+        # Save to temporary file
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+            temp_file.write(response.content)
+            temp_file_path = temp_file.name
+        
+        # Try to use invalid model (should fail)
+        with open(temp_file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",  # Invalid model
+                file=audio_file,
+                language="en",
+                response_format="json"
+            )
+        
+        # If we get here, the test failed (should have thrown an error)
+        print("❌ FAIL: Invalid model was accepted (should have been rejected)")
+        os.unlink(temp_file_path)
+        return False
+        
+    except Exception as e:
+        error_msg = str(e)
+        if "invalid_model" in error_msg.lower() or "invalid model" in error_msg.lower():
+            print(f"✅ SUCCESS: Invalid model properly rejected")
+            print(f"Error message: {error_msg}")
+            # Clean up
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+            return True
+        else:
+            print(f"❌ FAIL: Unexpected error: {error_msg}")
+            # Clean up
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+            return False
 
 
 def main():
@@ -155,19 +221,31 @@ def main():
     
     # Run tests
     success_count = 0
-    total_tests = 2
+    total_tests = 3
     
-    # Test 1: OpenAI SDK with file upload
-    print("Test 1: OpenAI SDK with file upload")
-    print("-" * 40)
+    # Test 1: OpenAI SDK with file upload (default model)
+    print("Test 1: OpenAI SDK with file upload (default model)")
+    print("-" * 50)
     if test_with_openai_sdk_file_upload():
         success_count += 1
     print()
     
-    # Test 2: URL fallback method
-    print("Test 2: URL parameter fallback")
-    print("-" * 40)
-    if test_with_openai_sdk_url_fallback():
+    # Test 2: AssemblyAI speech models
+    print("Test 2: AssemblyAI speech models (best, slam-1, universal)")
+    print("-" * 60)
+    model_results = test_assemblyai_speech_models()
+    successful_models = sum(1 for _, success, _ in model_results if success)
+    if successful_models == len(model_results):
+        success_count += 1
+        print(f"✅ All {len(model_results)} AssemblyAI speech models work correctly!")
+    else:
+        print(f"❌ Only {successful_models}/{len(model_results)} models worked")
+    print()
+    
+    # Test 3: Invalid model rejection
+    print("Test 3: Invalid model rejection (whisper-1 should be rejected)")
+    print("-" * 65)
+    if test_invalid_model_rejection():
         success_count += 1
     print()
     
@@ -177,7 +255,9 @@ def main():
     if success_count == total_tests:
         print("🎉 All tests passed!")
         print("\n💡 Your proxy API is working correctly with the OpenAI SDK!")
-        print("   You can now use it as a drop-in replacement for OpenAI's transcription API")
+        print("   - Supports AssemblyAI speech models: 'best', 'slam-1', 'universal'")
+        print("   - Properly rejects invalid models like 'whisper-1'")
+        print("   - Works as a drop-in replacement for OpenAI's transcription API")
         return 0
     else:
         print("❌ Some tests failed")

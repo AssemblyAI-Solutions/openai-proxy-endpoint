@@ -29,6 +29,7 @@ class AssemblyAITranscriptionRequest(BaseModel):
     audio_url: str
     language_code: Optional[str] = None
     word_boost: Optional[List[str]] = None
+    speech_model: Optional[str] = None
     punctuate: bool = True
     format_text: bool = True
 

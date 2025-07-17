@@ -69,6 +69,9 @@ class AssemblyAIClient:
         if request.word_boost:
             payload["word_boost"] = request.word_boost
         
+        if request.speech_model:
+            payload["speech_model"] = request.speech_model
+        
         self.logger.info(f"Submitting transcription job for audio URL: {request.audio_url}")
         
         try:
