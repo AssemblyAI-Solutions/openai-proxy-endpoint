@@ -20,11 +20,9 @@ class AssemblyAIClient:
         }
         self.logger = logging.getLogger(__name__)
         
-        # Timeout and retry settings
-        self.timeout_seconds = int(os.getenv("TIMEOUT_SECONDS", "300"))
-        self.max_retries = 3
-        self.initial_backoff = 1.0
-        self.max_backoff = 30.0
+        # Timeout and polling settings
+        self.timeout_seconds = 300
+        self.poll_interval = 0.1 #100ms polling interval
         self.upload_url = f"{self.base_url}/upload"
     
     def upload_file(self, file_content: bytes, filename: str) -> str:
@@ -100,9 +98,8 @@ class AssemblyAIClient:
             raise Exception(f"Failed to get transcription status: {str(e)}")
     
     def wait_for_completion(self, transcript_id: str) -> Dict[str, Any]:
-        """Poll for transcription completion with exponential backoff"""
+        """Poll for transcription completion with fixed 100ms interval"""
         start_time = time.time()
-        backoff = self.initial_backoff
         
         self.logger.info(f"Waiting for transcription completion: {transcript_id}")
         
@@ -121,20 +118,18 @@ class AssemblyAIClient:
                     self.logger.error(f"Transcription failed: {error_msg}")
                     raise Exception(f"Transcription failed: {error_msg}")
                 elif status in ["queued", "processing"]:
-                    # Continue polling
-                    time.sleep(backoff)
-                    backoff = min(backoff * 2, self.max_backoff)
+                    # Continue polling with fixed interval
+                    time.sleep(self.poll_interval)
                 else:
                     self.logger.warning(f"Unknown status: {status}")
-                    time.sleep(backoff)
+                    time.sleep(self.poll_interval)
                     
             except Exception as e:
                 if "Transcription failed:" in str(e):
                     raise  # Re-raise transcription errors
                 
                 self.logger.warning(f"Error polling status, retrying: {str(e)}")
-                time.sleep(backoff)
-                backoff = min(backoff * 2, self.max_backoff)
+                time.sleep(self.poll_interval)
         
         # Timeout reached
         self.logger.error(f"Transcription timeout after {self.timeout_seconds} seconds")
