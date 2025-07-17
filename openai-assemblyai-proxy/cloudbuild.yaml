@@ -1,0 +1,36 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/openai-assemblyai-proxy:$COMMIT_SHA', '.']
+  
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/openai-assemblyai-proxy:$COMMIT_SHA']
+  
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'openai-assemblyai-proxy'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/openai-assemblyai-proxy:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '1Gi'
+      - '--timeout'
+      - '900'
+      - '--set-env-vars'
+      - 'PORT=8080,LOG_LEVEL=INFO,TIMEOUT_SECONDS=300'
+      - '--max-instances'
+      - '100'
+      - '--concurrency'
+      - '80'
+
+images:
+  - 'gcr.io/$PROJECT_ID/openai-assemblyai-proxy:$COMMIT_SHA'
