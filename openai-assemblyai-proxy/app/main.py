@@ -31,14 +31,7 @@ logger = setup_logging()
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     logger.info("Starting OpenAI to AssemblyAI Proxy API")
-    
-    # Validate required environment variables
-    api_key = os.getenv("ASSEMBLYAI_API_KEY")
-    if not api_key:
-        logger.error("ASSEMBLYAI_API_KEY environment variable is required")
-        raise ValueError("ASSEMBLYAI_API_KEY environment variable is required")
-    
-    logger.info("API started successfully")
+    logger.info("API started successfully - AssemblyAI API key will be taken from client requests")
     yield
     logger.info("API shutting down")
 
@@ -76,6 +69,7 @@ async def health_check():
 
 @app.post("/v1/audio/transcriptions")
 async def create_transcription(
+    request: Request,
     file: UploadFile = File(None),
     model: str = Form("whisper-1"),
     language: str = Form(None),
@@ -89,6 +83,34 @@ async def create_transcription(
     """
     
     try:
+        # Extract API key from Authorization header
+        auth_header = request.headers.get("authorization")
+        if not auth_header:
+            raise HTTPException(
+                status_code=401,
+                detail=format_openai_error(
+                    "No authorization header provided",
+                    "invalid_request_error",
+                    "missing_authorization"
+                )
+            )
+        
+        # Extract the API key (format: "Bearer sk-...")
+        api_key = None
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header[7:]  # Remove "Bearer " prefix
+        else:
+            api_key = auth_header  # Direct API key
+        
+        if not api_key:
+            raise HTTPException(
+                status_code=401,
+                detail=format_openai_error(
+                    "Invalid authorization header format",
+                    "invalid_request_error",
+                    "invalid_authorization"
+                )
+            )
         # Determine if we have a file upload or URL
         final_audio_url = None
         
@@ -97,7 +119,7 @@ async def create_transcription(
             
             # Initialize AssemblyAI client for file upload
             try:
-                client = AssemblyAIClient()
+                client = AssemblyAIClient(api_key=api_key)
             except ValueError as e:
                 logger.error(f"Failed to initialize AssemblyAI client: {str(e)}")
                 raise HTTPException(
@@ -190,7 +212,7 @@ async def create_transcription(
         # Initialize AssemblyAI client (if not already initialized for file upload)
         if not file:
             try:
-                client = AssemblyAIClient()
+                client = AssemblyAIClient(api_key=api_key)
             except ValueError as e:
                 logger.error(f"Failed to initialize AssemblyAI client: {str(e)}")
                 raise HTTPException(
