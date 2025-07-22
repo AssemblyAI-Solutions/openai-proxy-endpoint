@@ -55,23 +55,12 @@ class AssemblyAIClient:
         """Submit transcription job to AssemblyAI"""
         url = f"{self.base_url}/transcript"
         
-        payload = {
-            "audio_url": request.audio_url,
-            "punctuate": request.punctuate,
-            "format_text": request.format_text
-        }
+        # Convert the request to dict to get all fields including extra ones
+        payload = request.dict(exclude_none=True)
         
-        if request.language_code:
-            payload["language_code"] = request.language_code
-        
-        if request.word_boost:
-            payload["word_boost"] = request.word_boost
-        
-        if request.speech_model:
-            payload["speech_model"] = request.speech_model
-        
-        if request.speaker_labels is not None:
-            payload["speaker_labels"] = request.speaker_labels
+        # Ensure required fields are present
+        if "audio_url" not in payload:
+            raise ValueError("audio_url is required")
         
         self.logger.info(f"Submitting transcription job for audio URL: {request.audio_url}")
         self.logger.info(f"Payload being sent to AssemblyAI: {payload}")
