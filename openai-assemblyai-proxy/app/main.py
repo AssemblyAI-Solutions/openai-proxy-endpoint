@@ -20,7 +20,8 @@ from .utils import (
     convert_assemblyai_to_openai_response,
     validate_audio_url,
     get_current_timestamp,
-    parse_prompt_for_speaker_diarization
+    parse_prompt_for_speaker_diarization,
+    parse_prompt_for_config
 )
 
 
@@ -179,11 +180,15 @@ async def create_transcription(
         if temperature != 0.0:
             logger.info(f"Temperature parameter '{temperature}' ignored")
         
-        # Parse prompt for speaker diarization control
-        speaker_diarization, cleaned_prompt = parse_prompt_for_speaker_diarization(prompt)
+        # Parse prompt for config parameters (JSON or legacy patterns)
+        config_dict, cleaned_prompt = parse_prompt_for_config(prompt)
         logger.info(f"Original prompt: '{prompt}'")
-        logger.info(f"Speaker diarization enabled: {speaker_diarization}")
+        logger.info(f"Parsed config: {config_dict}")
         logger.info(f"Cleaned prompt: '{cleaned_prompt}'")
+        
+        # Extract speaker diarization for backward compatibility logging
+        speaker_diarization = config_dict.get("speaker_labels", False)
+        logger.info(f"Speaker diarization enabled: {speaker_diarization}")
         
         # Map OpenAI parameters to AssemblyAI format
         language_code = map_language_code(language)
@@ -206,16 +211,27 @@ async def create_transcription(
         if model and speech_model:
             logger.info(f"Using AssemblyAI speech_model: '{speech_model}'")
         
+        # Create base AssemblyAI request parameters
+        base_params = {
+            "audio_url": final_audio_url,
+            "language_code": language_code,
+            "speech_model": speech_model,
+            "word_boost": word_boost,
+            "speaker_labels": speaker_diarization,
+            "punctuate": True,
+            "format_text": True
+        }
+        
+        # Merge with config parameters from prompt (config takes precedence)
+        merged_params = {**base_params, **config_dict}
+        
+        # Remove None values to avoid sending them to AssemblyAI
+        merged_params = {k: v for k, v in merged_params.items() if v is not None}
+        
+        logger.info(f"Final AssemblyAI request parameters: {merged_params}")
+        
         # Create AssemblyAI request
-        assemblyai_request = AssemblyAITranscriptionRequest(
-            audio_url=final_audio_url,
-            language_code=language_code,
-            speech_model=speech_model,
-            word_boost=word_boost,
-            speaker_labels=speaker_diarization,
-            punctuate=True,
-            format_text=True
-        )
+        assemblyai_request = AssemblyAITranscriptionRequest(**merged_params)
         
         # Initialize AssemblyAI client (if not already initialized for file upload)
         if not file:

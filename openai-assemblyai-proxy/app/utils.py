@@ -128,6 +128,62 @@ def parse_prompt_for_speaker_diarization(prompt: str) -> tuple[bool, str]:
     return speaker_diarization, cleaned_prompt
 
 
+def parse_prompt_for_config(prompt: str) -> tuple[dict, str]:
+    """Parse prompt for AssemblyAI config parameters and return (config_dict, cleaned_prompt)"""
+    if not prompt:
+        return {}, None
+    
+    config_dict = {}
+    cleaned_prompt = prompt
+    
+    # First, try to parse as JSON
+    import json
+    try:
+        # Try to parse the entire prompt as JSON
+        config_dict = json.loads(prompt)
+        # If successful, the entire prompt was JSON config, so no cleaned prompt
+        cleaned_prompt = None
+        return config_dict, cleaned_prompt
+    except (json.JSONDecodeError, TypeError):
+        # Not valid JSON, continue with legacy pattern matching
+        pass
+    
+    # Check for speaker diarization flags (case insensitive) - legacy support
+    prompt_lower = prompt.lower()
+    speaker_diarization = False
+    
+    # Look for various patterns (both speaker_labels and speaker_diarization)
+    patterns = [
+        "speaker_labels=true",
+        "speaker_labels:true", 
+        "speaker_labels true",
+        "enable_speaker_labels",
+        "speaker_diarization=true",
+        "speaker_diarization:true", 
+        "speaker_diarization true",
+        "enable_speaker_diarization",
+        "diarization=true",
+        "diarization:true",
+        "diarization true"
+    ]
+    
+    for pattern in patterns:
+        if pattern in prompt_lower:
+            speaker_diarization = True
+            config_dict["speaker_labels"] = True
+            # Remove the control pattern from the prompt
+            # Find the actual case in the original prompt
+            start_idx = prompt_lower.find(pattern)
+            if start_idx != -1:
+                cleaned_prompt = (prompt[:start_idx] + prompt[start_idx + len(pattern):]).strip()
+            break
+    
+    # Return empty string as None if prompt becomes empty after cleaning
+    cleaned_prompt = cleaned_prompt if cleaned_prompt else None
+    
+    return config_dict, cleaned_prompt
+
+
 def convert_assemblyai_to_openai_response(assemblyai_response: Dict[str, Any], response_format: str = "json") -> Dict[str, Any]:
     """Convert AssemblyAI response to OpenAI format"""
     if response_format == "text":

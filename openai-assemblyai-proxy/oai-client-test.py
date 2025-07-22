@@ -8,9 +8,8 @@ from datetime import datetime
 def main():
     
     client = openai.OpenAI(
-        api_key="fc9fcba4149f4bfa9774f7bff8865cba",  # This will be passed to AssemblyAI
-        # base_url="https://assemblyai-oai-client-142150461292.us-west1.run.app/v1"
-        base_url="http://localhost:8080/v1"
+        api_key="<api-key>",
+        base_url="https://assemblyai-oai-client-142150461292.us-west1.run.app/v1"
     )
     
     # Download sample audio file
@@ -31,7 +30,7 @@ def main():
                 file=audio_file,
                 language="en",
                 response_format="json",
-                prompt="speaker_labels=true"  # Enable speaker labels via prompt
+                prompt=json.dumps({"speaker_labels": True})  # Enable speaker labels via prompt
             )
 
         print(transcript)

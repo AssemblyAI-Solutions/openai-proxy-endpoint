@@ -33,6 +33,10 @@ class AssemblyAITranscriptionRequest(BaseModel):
     speaker_labels: Optional[bool] = None
     punctuate: bool = True
     format_text: bool = True
+    
+    # Allow additional fields for flexible config
+    class Config:
+        extra = "allow"
 
 
 class AssemblyAITranscriptionResponse(BaseModel):
